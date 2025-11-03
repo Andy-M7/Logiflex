@@ -36,7 +36,7 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      // Mock de autenticación (reemplazar por tu API)
+      // Mock de autenticación (reemplazar POR API)
       await new Promise<void>((res) => setTimeout(res, 700));
       if (!(mail === 'admin@demo.com' && pass === 'admin123')) {
         throw new Error('Credenciales incorrectas');

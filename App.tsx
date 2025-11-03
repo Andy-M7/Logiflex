@@ -2,9 +2,10 @@ import 'react-native-gesture-handler';
 import React from 'react';
 import { useColorScheme, StatusBar } from 'react-native';
 import { NavigationContainer, DarkTheme, DefaultTheme, Theme } from '@react-navigation/native';
+
 // Usa solo uno:
-import DrawerNavigation from './src/presentation/navigation/DrawerNavigation';
-// import StackNavigation from './src/presentation/navigation/StackNavigation';
+//import DrawerNavigation from './src/presentation/navigation/DrawerNavigation';
+import StackNavigation from './src/presentation/navigation/StackNavigation';
 // import BottomTabsNavigator from './src/presentation/navigation/BottomTabsNavigator';
 
 export default function App() {
@@ -14,7 +15,7 @@ export default function App() {
   return (
     <NavigationContainer theme={theme}>
       <StatusBar barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'} />
-      <DrawerNavigation />
+      <StackNavigation/>
     </NavigationContainer>
   );
 }
