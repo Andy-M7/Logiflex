@@ -51,6 +51,7 @@ export default function StackNavigation() {
       <Stack.Screen name="PackingLists" component={PackingListsScreen} options={{ title: 'Packing Lists' }} />
       <Stack.Screen name="Productos" component={ProductosScreen} options={{ title: 'Productos' }} />
       <Stack.Screen name="Asistencia" component={AsistenciaScreen} options={{ title: 'Asistencia' }} />
+      <Stack.Screen name="Roles" component={RolesScreen} options={{ title: 'Roles' }} />
     </Stack.Navigator>
   );
 }

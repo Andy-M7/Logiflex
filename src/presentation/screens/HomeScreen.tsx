@@ -1,12 +1,15 @@
-import React, { memo } from 'react';
+import React, { memo, useLayoutEffect } from 'react';
 import {
   View, Text, Pressable, StyleSheet, ScrollView, useColorScheme, Platform,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/StackNavigation';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
+
+const TOKEN_KEY = 'auth:token';
 
 const MODULES = [
   { key: 'Usuarios',     title: 'Usuarios',      subtitle: 'Gestión y Roles',       icon: 'account-group' },
@@ -20,8 +23,26 @@ export default function HomeScreen({ navigation }: Props) {
   const isDark = useColorScheme() === 'dark';
   const C = palette(isDark);
 
-  // ⚠️ Quitamos el bloque de “LogiFlex” para evitar el duplicado del título.
-  // El encabezado superior lo gestiona tu Drawer/Stack (title: "Inicio")
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={async () => {
+            await AsyncStorage.removeItem(TOKEN_KEY);
+            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+          }}
+          style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+          android_ripple={{ color: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }}
+        >
+          <MaterialCommunityIcons
+            name="logout"
+            size={22}
+            color={isDark ? '#ECEEF2' : '#0E1116'}
+          />
+        </Pressable>
+      ),
+    });
+  }, [navigation, isDark]);
 
   return (
     <ScrollView contentContainerStyle={[styles.container, { backgroundColor: C.bg }]}>
