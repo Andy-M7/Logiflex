@@ -9,8 +9,8 @@ import EmpleadosScreen from '../screens/EmpleadosScreen';
 import PackingListsScreen from '../screens/PackingListsScreen';
 import ProductosScreen from '../screens/ProductosScreen';
 import AsistenciaScreen from '../screens/AsistenciaScreen';
+import DetallePackingListScreen from '../screens/DetallePackingListScreen';
 //import VisualizarAsistenciaScreen from '../screens/VisualizarAsistenciaScreen';
-// (opcional) pantalla de Roles si ya la tienes
 import RolesScreen from '../screens/RolesScreen';
 
 // ===== Tipado de rutas =====
@@ -23,6 +23,7 @@ export type RootStackParamList = {
   Asistencia: undefined;
   Roles: undefined;
   VisualizarAsistencia: { month?: string } | undefined; 
+  DetallePackingList: { id: number }; 
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -43,6 +44,7 @@ export default function StackNavigation() {
       <Stack.Screen name="Productos" component={ProductosScreen} options={{ title: 'Productos' }} />
       <Stack.Screen name="Asistencia" component={AsistenciaScreen} options={{ title: 'Asistencia' }} />
       <Stack.Screen name="Roles" component={RolesScreen} options={{ title: 'Roles' }} />
+      <Stack.Screen name="DetallePackingList" component={DetallePackingListScreen} options={{ title: 'DetallePackingList' }} />
     </Stack.Navigator>
   );
 }
