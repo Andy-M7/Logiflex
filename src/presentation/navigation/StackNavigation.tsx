@@ -10,7 +10,6 @@ import PackingListsScreen from '../screens/PackingListsScreen';
 import ProductosScreen from '../screens/ProductosScreen';
 import AsistenciaScreen from '../screens/AsistenciaScreen';
 //import VisualizarAsistenciaScreen from '../screens/VisualizarAsistenciaScreen';
-// (opcional) pantalla de Roles si ya la tienes
 import RolesScreen from '../screens/RolesScreen';
 
 // ===== Tipado de rutas =====
