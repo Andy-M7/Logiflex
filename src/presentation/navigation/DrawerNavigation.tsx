@@ -16,7 +16,6 @@ export default function DrawerNavigation() {
   return (
     <Drawer.Navigator>
       <Drawer.Screen name="Inicio" component={StackNavigation} options={{ title: 'Inicio' }} />
-      <Drawer.Screen name="Modulos" component={BottomTabsNavigator} options={{ title: 'Módulos' }} />
     </Drawer.Navigator>
   );
 }
