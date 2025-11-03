@@ -11,6 +11,7 @@ export type TopTabsParamList = {
   Empleados: undefined;
   Packing: undefined;
   Productos: undefined;
+  Asistencia: undefined;
 };
 
 const TopTab = createMaterialTopTabNavigator<TopTabsParamList>();
