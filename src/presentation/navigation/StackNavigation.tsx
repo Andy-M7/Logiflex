@@ -10,7 +10,6 @@ import EmpleadosScreen from '../screens/EmpleadosScreen';
 import PackingListsScreen from '../screens/PackingListsScreen';
 import ProductosScreen from '../screens/ProductosScreen';
 import AsistenciaScreen from '../screens/AsistenciaScreen';
-import DetallePackingListScreen from '../screens/DetallePackingListScreen';
 //import VisualizarAsistenciaScreen from '../screens/VisualizarAsistenciaScreen';
 import RolesScreen from '../screens/RolesScreen';
 
@@ -24,12 +23,7 @@ export type RootStackParamList = {
   Productos: undefined;
   Asistencia: undefined;
   Roles: undefined;
-
-  VisualizarAsistencia: { month?: string } | undefined; 
-  DetallePackingList: { id: number }; 
-
   //VisualizarAsistencia: { month?: string } | undefined; // ej. '2025-11'
-
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -57,10 +51,6 @@ export default function StackNavigation() {
       <Stack.Screen name="PackingLists" component={PackingListsScreen} options={{ title: 'Packing Lists' }} />
       <Stack.Screen name="Productos" component={ProductosScreen} options={{ title: 'Productos' }} />
       <Stack.Screen name="Asistencia" component={AsistenciaScreen} options={{ title: 'Asistencia' }} />
-      <Stack.Screen name="Roles" component={RolesScreen} options={{ title: 'Roles' }} />
-      <Stack.Screen name="DetallePackingList" component={DetallePackingListScreen} options={{ title: 'DetallePackingList' }} />
-
-
     </Stack.Navigator>
   );
 }

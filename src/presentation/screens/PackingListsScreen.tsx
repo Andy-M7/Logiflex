@@ -3,14 +3,10 @@ import {
   View, Text, StyleSheet, TextInput, FlatList, Image, Pressable
 } from 'react-native';
 import { launchImageLibrary, ImageLibraryOptions } from 'react-native-image-picker';
-import { useNavigation, NavigationProp } from '@react-navigation/native';
-import type { RootStackParamList } from '../types';
 
 type PackingList = { id: number; numero: string; lote: string; isSurtido?: boolean; imageUri?: string | null; };
 
 export default function PackingListsScreen() {
-  const navigation = useNavigation<NavigationProp<RootStackParamList, 'PackingLists'>>();
-
   const [data, setData] = useState<PackingList[]>([
     { id: 1, numero: '40802', lote: '10266-7-30', isSurtido: true, imageUri: null },
     { id: 2, numero: '40910', lote: '10270-8-01', isSurtido: false, imageUri: null },
@@ -34,12 +30,8 @@ export default function PackingListsScreen() {
     setData(prev => prev.map(p => (p.id === id ? { ...p, imageUri: null } : p)));
   };
 
-  const handlePressItem = (item: PackingList) => {
-    navigation.navigate('DetallePackingList', { id: item.id });
-  };
-
   const renderItem = ({ item }: { item: PackingList }) => (
-    <Pressable style={styles.row} onPress={() => handlePressItem(item)}>
+    <Pressable style={styles.row}>
       <View style={styles.thumbWrap}>
         {item.imageUri ? (
           <Image source={{ uri: item.imageUri }} style={styles.thumb} />
