@@ -12,6 +12,7 @@ import ProductosScreen from '../screens/ProductosScreen';
 import AsistenciaScreen from '../screens/AsistenciaScreen';
 //import VisualizarAsistenciaScreen from '../screens/VisualizarAsistenciaScreen';
 import RolesScreen from '../screens/RolesScreen';
+import DetallePackingListScreen from '../screens/DetallePackingtListScreen';
 
 // ===== Tipado de rutas =====
 export type RootStackParamList = {
@@ -23,6 +24,7 @@ export type RootStackParamList = {
   Productos: undefined;
   Asistencia: undefined;
   Roles: undefined;
+  DetallePackingList: { id: number };
   //VisualizarAsistencia: { month?: string } | undefined; // ej. '2025-11'
 };
 
@@ -52,6 +54,7 @@ export default function StackNavigation() {
       <Stack.Screen name="Productos" component={ProductosScreen} options={{ title: 'Productos' }} />
       <Stack.Screen name="Asistencia" component={AsistenciaScreen} options={{ title: 'Asistencia' }} />
       <Stack.Screen name="Roles" component={RolesScreen} options={{ title: 'Roles' }} />
+      <Stack.Screen name="DetallePackingList" component={DetallePackingListScreen} options={{ title: 'Detalle Packing List' }} />
     </Stack.Navigator>
   );
 }
