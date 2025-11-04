@@ -25,7 +25,7 @@ const ESTADOS = [
 
 export default function DetallePackingListScreen({ route }: Props) {
   const { id } = route.params;
-  const [numeroPacking] = useState('40802'); // Deberías cargar esto desde tu store/backend
+  const [numeroPacking] = useState('40802'); 
 
   // Simulación de productos
   const [productos, setProductos] = useState<Producto[]>([

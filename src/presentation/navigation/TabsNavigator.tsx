@@ -32,7 +32,7 @@ export default function TabsNavigator() {
   return (
     <TopTab.Navigator
       initialRouteName="Usuarios"
-      // SOLO props válidas:
+
       style={{ paddingTop: insets.top, backgroundColor: bg }}
       screenOptions={{
         swipeEnabled: true,
@@ -42,7 +42,7 @@ export default function TabsNavigator() {
         tabBarInactiveTintColor: inactive,
         tabBarPressColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
         tabBarIndicatorStyle: { backgroundColor: active, height: 3, borderRadius: 3 },
-        tabBarItemStyle: { width: 'auto' }, // ancho según el texto
+        tabBarItemStyle: { width: 'auto' }, 
         tabBarStyle: {
           backgroundColor: bg,
           borderBottomWidth: 1,
