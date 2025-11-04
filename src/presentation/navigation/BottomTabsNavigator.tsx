@@ -44,7 +44,6 @@ export default function BottomTabsNavigator() {
           marginBottom: 6,
         },
         tabBarIcon: ({ color, size, focused }) => {
-          // el size que envía RN suele ser 24; subimos un poco para mejor legibilidad
           const s = size + 2;
 
           switch (route.name) {
