@@ -1,0 +1,32 @@
+import { AuthRepository } from "../../domain/repositories/AuthRepository";
+import { User } from "../../domain/entities/User";
+import { auth } from "../../firebase/firebaseConfig";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+
+export class AuthRepositoryImpl implements AuthRepository {
+
+  async login(email: string, password: string): Promise<User> {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    const uid = result.user.uid;
+
+    // Llamar al backend Nest (cuando ya tengas la API lista)
+    const resp = await fetch("http://TU_BACKEND/api/v1/auth/firebase", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid }),
+    });
+
+    const data = await resp.json();
+
+    return {
+      uid,
+      email: data.email,
+      name: data.name,
+      role: data.role,
+    };
+  }
+
+  async logout(): Promise<void> {
+    await signOut(auth);
+  }
+}
