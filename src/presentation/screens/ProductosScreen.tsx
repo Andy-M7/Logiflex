@@ -1,64 +1,145 @@
-import React, { useMemo, useState } from 'react';
+import React, { useLayoutEffect, useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, FlatList, Pressable, Modal,
-  KeyboardAvoidingView, Platform, Image
+  View, Text, StyleSheet, FlatList, Pressable,
+  Modal, KeyboardAvoidingView, Platform, TextInput, Alert, ActivityIndicator, Image
 } from 'react-native';
-import { launchImageLibrary, ImageLibraryOptions } from 'react-native-image-picker';
+import { useFocusEffect } from '@react-navigation/native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/StackNavigation';
 
-type Product = { id: string; nombre: string; lote?: string; imageUri?: string | null; };
+// Clean Architecture
+import { Product } from '../../domain/entities/products';
+import { 
+  GetProductsUseCase, 
+  CreateProductUseCase, 
+  UpdateProductUseCase, 
+  DeleteProductUseCase 
+} from '../../domain/useCases/products';
 
-export default function ProductosScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, 'Productos'>; // Asegúrate de tener esta ruta
+
+export default function ProductosScreen({ navigation }: Props) {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
-  const [data, setData] = useState<Product[]>([
-    { id: 'a', nombre: 'Producto A', lote: '12345' },
-    { id: 'b', nombre: 'Producto B', lote: '67890' },
-    { id: 'c', nombre: 'Producto C' },
-  ]);
 
+  // Formulario
   const [open, setOpen] = useState(false);
-  const [nombre, setNombre] = useState('');
-  const [lote, setLote] = useState('');
-  const [imageUri, setImageUri] = useState<string | null>(null);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter(p =>
-      p.nombre.toLowerCase().includes(q) || (p.lote ?? '').toLowerCase().includes(q)
-    );
-  }, [query, data]);
-
-  const pickImage = async () => {
-    const options: ImageLibraryOptions = { mediaType: 'photo', selectionLimit: 1, quality: 0.7 };
-    const res = await launchImageLibrary(options);
-    const uri = res.assets?.[0]?.uri;
-    if (uri) setImageUri(uri);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [batch, setBatch] = useState('');
+  
+  // Cargar Productos
+  const loadProducts = async () => {
+    setLoading(true);
+    try {
+      const data = await GetProductsUseCase();
+      setProducts(data);
+    } catch (error) {
+      console.log('Error cargando productos', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const guardar = () => {
-    if (!nombre.trim()) return;
-    const nuevo: Product = {
-      id: String(Date.now()),
-      nombre: nombre.trim(),
-      lote: lote.trim() || undefined,
-      imageUri,
-    };
-    setData(arr => [nuevo, ...arr]);
-    setNombre(''); setLote(''); setImageUri(null); setOpen(false);
+  useFocusEffect(
+    useCallback(() => {
+      loadProducts();
+    }, [])
+  );
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+        headerRight: () => null, // Ocultamos el default si lo hubiera
+    });
+  }, [navigation]);
+
+  // Filtro de búsqueda
+  const filteredData = useMemo(() => {
+    if (!query) return products;
+    const lower = query.toLowerCase();
+    return products.filter(p => 
+        p.name.toLowerCase().includes(lower) || 
+        p.batch.toLowerCase().includes(lower)
+    );
+  }, [products, query]);
+
+  // --- ACCIONES ---
+  const abrirModalCrear = () => {
+    setEditingId(null);
+    setName('');
+    setBatch('');
+    setOpen(true);
+  };
+
+  const abrirModalEditar = (prod: Product) => {
+    setEditingId(prod.id);
+    setName(prod.name);
+    setBatch(prod.batch);
+    setOpen(true);
+  };
+
+  const guardar = async () => {
+    if (!name.trim() || !batch.trim()) {
+      Alert.alert('Datos incompletos', 'Nombre y Lote son obligatorios.');
+      return;
+    }
+
+    try {
+      const payload = {
+        name: name.trim(),
+        batch: batch.trim(),
+        isActive: true, // Por defecto activo
+        // imageUrl: '...' // Aquí podrías agregar lógica de imagen
+      };
+
+      if (editingId) {
+        await UpdateProductUseCase(editingId, payload);
+        Alert.alert('Actualizado', 'Producto modificado correctamente');
+      } else {
+        await CreateProductUseCase(payload);
+        Alert.alert('Creado', 'Producto registrado correctamente');
+      }
+      
+      loadProducts();
+      setOpen(false);
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo guardar el producto');
+    }
+  };
+
+  const eliminar = (id: string) => {
+    Alert.alert('Eliminar', '¿Estás seguro?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { 
+        text: 'Eliminar', 
+        style: 'destructive', 
+        onPress: async () => {
+          try {
+            await DeleteProductUseCase(id);
+            loadProducts();
+          } catch (error) {
+            Alert.alert('Error', 'No se pudo eliminar');
+          }
+        }
+      }
+    ]);
   };
 
   const renderItem = ({ item }: { item: Product }) => (
     <View style={styles.card}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.cardTitle}>{item.nombre}</Text>
-        {!!item.lote && <Text style={styles.cardSub}>Lote {item.lote}</Text>}
+      <View style={{flex: 1}}>
+        <Text style={styles.prodName}>{item.name}</Text>
+        <Text style={styles.prodBatch}>Lote {item.batch}</Text>
       </View>
-      <View style={styles.cardActions}>
-        <Pressable style={styles.iconBtn} onPress={() => { /* TODO: editar */ }}>
-          <Text style={styles.icon}>✎</Text>
+      
+      <View style={styles.actions}>
+        <Pressable style={styles.iconBtn} onPress={() => abrirModalEditar(item)}>
+            <MaterialCommunityIcons name="pencil-outline" size={20} color="#4c6ef5" />
         </Pressable>
-        <Pressable style={styles.iconBtn} onPress={() => { /* TODO: ver imagen */ }}>
-          <Text style={styles.icon}>🖼️</Text>
+        <Pressable style={[styles.iconBtn, {backgroundColor: '#333'}]} onPress={() => eliminar(item.id)}>
+            <MaterialCommunityIcons name="trash-can-outline" size={20} color="#ff6b6b" />
         </Pressable>
       </View>
     </View>
@@ -66,63 +147,61 @@ export default function ProductosScreen() {
 
   return (
     <View style={styles.container}>
-      {/* buscador */}
-      <View style={styles.searchBox}>
-        <TextInput
-          placeholder="Buscar productos"
-          placeholderTextColor="#8a8a8a"
-          value={query}
-          onChangeText={setQuery}
-          style={styles.searchInput}
+      
+      {/* Buscador y Botón Nuevo */}
+      <View style={styles.headerContainer}>
+        <TextInput 
+            style={styles.searchInput}
+            placeholder="Buscar productos"
+            placeholderTextColor="#888"
+            value={query}
+            onChangeText={setQuery}
         />
-      </View>
-
-      {/* botón nuevo */}
-      <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-        <Pressable style={styles.newBtn} onPress={() => setOpen(true)}>
-          <Text style={styles.newBtnText}>+ Nuevo</Text>
+        <Pressable style={styles.newBtn} onPress={abrirModalCrear}>
+            <Text style={styles.newBtnText}>+ Nuevo</Text>
         </Pressable>
       </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={p => p.id}
-        renderItem={renderItem}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, gap: 12 }}
-      />
+      {loading ? (
+        <ActivityIndicator style={{ marginTop: 20 }} size="large" color="#4c6ef5" />
+      ) : (
+        <FlatList
+            data={filteredData}
+            keyExtractor={(i) => i.id}
+            contentContainerStyle={{ padding: 16, gap: 12 }}
+            renderItem={renderItem}
+            ListEmptyComponent={
+              <Text style={{textAlign: 'center', color: '#888', marginTop: 20}}>
+                No hay productos registrados
+              </Text>
+            }
+        />
+      )}
 
-      {/* bottom-sheet */}
+      {/* Modal */}
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetBackdrop}>
           <Pressable style={{ flex: 1 }} onPress={() => setOpen(false)} />
           <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Nuevo Producto</Text>
+            <Text style={styles.sheetTitle}>
+              {editingId ? 'Editar Producto' : 'Nuevo Producto'}
+            </Text>
 
-            <Text style={styles.label}>Nombre</Text>
+            <Text style={styles.label}>Nombre del Producto</Text>
             <TextInput
-              value={nombre}
-              onChangeText={setNombre}
-              placeholder="Ej. Producto D"
-              placeholderTextColor="#8a8a8a"
+              value={name}
+              onChangeText={setName}
+              placeholder="Ej. Producto A"
               style={styles.input}
             />
 
-            <Text style={styles.label}>Lote</Text>
+            <Text style={styles.label}>Número de Lote</Text>
             <TextInput
-              value={lote}
-              onChangeText={setLote}
-              placeholder="Opcional"
-              placeholderTextColor="#8a8a8a"
+              value={batch}
+              onChangeText={setBatch}
+              placeholder="Ej. 12345"
               style={styles.input}
             />
-
-            <Text style={styles.label}>Imagen (opcional)</Text>
-            {imageUri ? (
-              <Image source={{ uri: imageUri }} style={{ width: '100%', height: 140, borderRadius: 10 }} />
-            ) : null}
-            <Pressable style={styles.secondaryBtn} onPress={pickImage}>
-              <Text style={styles.secondaryText}>{imageUri ? 'Cambiar imagen' : 'Adjuntar imagen'}</Text>
-            </Pressable>
 
             <View style={styles.sheetActions}>
               <Pressable style={[styles.btn, styles.cancel]} onPress={() => setOpen(false)}>
@@ -140,54 +219,40 @@ export default function ProductosScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  searchBox: { paddingHorizontal: 16, paddingTop: 12 },
-  searchInput: {
-    backgroundColor: '#2b2d31',
-    color: 'white',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-
-  newBtn: {
-    alignSelf: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: '#4c6ef5',
-  },
-  newBtnText: { color: 'white', fontWeight: '700' },
+  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  headerContainer: { padding: 16, gap: 12, backgroundColor: '#fff', elevation: 2 },
+  searchInput: { backgroundColor: '#333', borderRadius: 10, padding: 12, color: 'white' },
+  newBtn: { backgroundColor: '#4c6ef5', padding: 12, borderRadius: 10, alignItems: 'center' },
+  newBtnText: { color: 'white', fontWeight: 'bold' },
 
   card: {
-    backgroundColor: '#1f1f23',
+    backgroundColor: '#1a1a1a', // Fondo oscuro como tu imagen
     borderRadius: 16,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  cardTitle: { fontSize: 18, fontWeight: '800', color: 'white' },
-  cardSub: { color: 'white', opacity: 0.75, marginTop: 4 },
-  cardActions: { flexDirection: 'row', gap: 10, marginLeft: 12 },
-  iconBtn: {
-    width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#2b2d31',
+  prodName: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  prodBatch: { color: '#aaa', fontSize: 14, marginTop: 4 },
+  
+  actions: { flexDirection: 'row', gap: 8 },
+  iconBtn: { 
+    width: 36, height: 36, 
+    borderRadius: 8, 
+    backgroundColor: '#2a2a2a', 
+    justifyContent: 'center', alignItems: 'center' 
   },
-  icon: { color: '#7aa2ff', fontSize: 16 },
 
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#0f0f10', padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20, gap: 10 },
-  sheetTitle: { fontSize: 20, fontWeight: '800', color: 'white' },
-  label: { fontWeight: '700', color: 'white' },
-  input: {
-    borderWidth: 1, borderColor: '#3a3a3a', borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 10, color: 'white', backgroundColor: '#141416',
-  },
-  secondaryBtn: { borderWidth: 1, borderColor: '#3a3a3a', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-  secondaryText: { color: 'white', fontWeight: '600' },
-  sheetActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  btn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
-  cancel: { backgroundColor: '#1f1f23' },
+  // Modal Styles
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: 'white', padding: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, gap: 12 },
+  sheetTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 8, color: '#333' },
+  label: { fontWeight: '700', color: '#333', marginTop: 4 },
+  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 12, fontSize: 16, color: '#333' },
+  sheetActions: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  btn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  cancel: { backgroundColor: '#f1f3f5' },
   save: { backgroundColor: '#4c6ef5' },
-  btnText: { fontWeight: '700', color: 'white' },
+  btnText: { fontWeight: 'bold' },
 });
