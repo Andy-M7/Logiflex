@@ -1,248 +1,195 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, FlatList, Pressable, Modal,
-  KeyboardAvoidingView, Platform, Image, Alert
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ActivityIndicator,
+  StyleSheet
 } from 'react-native';
 
-import { launchImageLibrary } from 'react-native-image-picker';
-import { ProductsApi } from '../../services/productsApi';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/StackNavigation';
 
-type Product = {
-  id: string;
-  nombre: string;
-  lote?: string;
-  imageUrl?: string | null;
-};
+import { signInWithEmailAndPassword } from "firebase/auth";
+import axios from "axios";
+import { auth } from '../../firebase';
+import { API_URL } from '../../services/api';
 
-export default function ProductosScreen() {
-  const [query, setQuery] = useState('');
-  const [data, setData] = useState<Product[]>([]);
+type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
-  const [open, setOpen] = useState(false);
-  const [nombre, setNombre] = useState('');
-  const [lote, setLote] = useState('');
-  const [imageUri, setImageUri] = useState<string | null>(null);
+const TOKEN_KEY = "auth:token";
+const USER_INFO = "auth:user";
 
-  // =============================
-  // 🔥 CARGAR PRODUCTOS DEL BACKEND
-  // =============================
-  const cargarProductos = async () => {
-    try {
-      const res = await ProductsApi.getAll();
-      setData(res.data);
-    } catch (err) {
-      Alert.alert("Error", "No se pudieron cargar los productos");
-    }
-  };
+export default function LoginScreen() {
+  const navigation = useNavigation<Nav>();
 
-  useEffect(() => {
-    cargarProductos();
-  }, []);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
 
-  // =============================
-  // FILTRADO
-  // =============================
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter(p =>
-      p.nombre.toLowerCase().includes(q) ||
-      (p.lote ?? '').toLowerCase().includes(q)
-    );
-  }, [query, data]);
+  const onLogin = async () => {
+    setErr("");
 
-  // =============================
-  // IMAGEN
-  // =============================
-  const pickImage = async () => {
-    const res = await launchImageLibrary({ mediaType: 'photo', quality: 0.7 });
+    if (!email.trim()) return setErr("Ingresa tu correo");
+    if (!password.trim()) return setErr("Ingresa tu contraseña");
 
-    const uri = res.assets?.[0]?.uri;
-    if (uri) setImageUri(uri);
-  };
-
-  // =============================
-  // GUARDAR PRODUCTO EN BACKEND
-  // =============================
-  const guardar = async () => {
-    if (!nombre.trim()) return Alert.alert("Error", "El nombre es obligatorio");
-
-    const payload = {
-      nombre,
-      lote: lote.trim() || null,
-      imageUrl: imageUri ?? null, // guarda la URL o null
-    };
+    setLoading(true);
 
     try {
-      await ProductsApi.create(payload);
+      // 1️⃣ Login en Firebase
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseToken = await cred.user.getIdToken();
 
-      Alert.alert("Éxito", "Producto registrado correctamente");
-      setNombre('');
-      setLote('');
-      setImageUri(null);
-      setOpen(false);
-      cargarProductos();
+      // 2️⃣ Enviar token al backend CORRECTAMENTE
+      const res = await axios.post(`${API_URL}/auth/login`, {
+        idToken: firebaseToken, // ← NOMBRE CORRECTO
+      });
 
-    } catch (err: any) {
-      const backendMsg = err.response?.data?.message;
-      Alert.alert("Error", backendMsg || "No se pudo registrar producto");
+      // 3️⃣ Guardar sesión
+      await AsyncStorage.setItem(TOKEN_KEY, firebaseToken);
+      await AsyncStorage.setItem(USER_INFO, JSON.stringify(res.data));
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Home" }],
+      });
+
+    } catch (e: any) {
+      console.log("LOGIN ERROR:", e?.response?.data || e.code);
+
+      const mensajes: Record<string, string> = {
+        "auth/invalid-email": "Correo inválido",
+        "auth/missing-password": "Ingresa tu contraseña",
+        "auth/wrong-password": "Contraseña incorrecta",
+        "auth/user-not-found": "Usuario no registrado",
+        "auth/too-many-requests": "Demasiados intentos. Intente luego"
+      };
+
+      setErr(
+        mensajes[e.code] ||
+        e?.response?.data?.message ||
+        "Error al iniciar sesión"
+      );
+    } finally {
+      setLoading(false);
     }
   };
-
-  // =============================
-  // RENDER ITEM
-  // =============================
-  const renderItem = ({ item }: { item: Product }) => (
-    <View style={styles.card}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.cardTitle}>{item.nombre}</Text>
-        {!!item.lote && <Text style={styles.cardSub}>Lote {item.lote}</Text>}
-      </View>
-
-      <View style={styles.cardActions}>
-        <Pressable style={styles.iconBtn}>
-          <Text style={styles.icon}>✎</Text>
-        </Pressable>
-
-        {item.imageUrl ? (
-          <Pressable style={styles.iconBtn}>
-            <Text style={styles.icon}>🖼️</Text>
-          </Pressable>
-        ) : null}
-      </View>
-    </View>
-  );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.searchBox}>
+    <View style={styles.screen}>
+      <View style={styles.card}>
+
+        <Text style={styles.logo}>🏷 LogiFlex</Text>
+        <Text style={styles.subtitle}>Bienvenido de nuevo</Text>
+
+        <Text style={styles.label}>Correo electrónico</Text>
         <TextInput
-          placeholder="Buscar productos"
-          placeholderTextColor="#8a8a8a"
-          value={query}
-          onChangeText={setQuery}
-          style={styles.searchInput}
+          style={styles.input}
+          placeholder="usuario@logiflex.com"
+          placeholderTextColor="#9ca3af"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
         />
-      </View>
 
-      <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-        <Pressable style={styles.newBtn} onPress={() => setOpen(true)}>
-          <Text style={styles.newBtnText}>+ Nuevo</Text>
+        <Text style={styles.label}>Contraseña</Text>
+        <View style={styles.passWrapper}>
+          <TextInput
+            style={[styles.input, { flex: 1 }]}
+            placeholder="********"
+            placeholderTextColor="#9ca3af"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPass}
+          />
+
+          <Pressable onPress={() => setShowPass(!showPass)} style={styles.eyeBtn}>
+            <Text>👁️</Text>
+          </Pressable>
+        </View>
+
+        {err ? <Text style={styles.error}>{err}</Text> : null}
+
+        <Pressable style={styles.button} onPress={onLogin}>
+          {loading
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.buttonText}>Ingresar</Text>
+          }
         </Pressable>
+
+        <Text style={styles.registerText}>
+          ¿No tienes cuenta? <Text style={styles.registerLink}>Regístrate</Text>
+        </Text>
+
       </View>
-
-      <FlatList
-        data={filtered}
-        keyExtractor={p => p.id}
-        renderItem={renderItem}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, gap: 12 }}
-      />
-
-      <Modal visible={open} transparent animationType="slide">
-        <KeyboardAvoidingView style={styles.sheetBackdrop}>
-          <Pressable style={{ flex: 1 }} onPress={() => setOpen(false)} />
-
-          <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Nuevo Producto</Text>
-
-            <Text style={styles.label}>Nombre</Text>
-            <TextInput
-              value={nombre}
-              onChangeText={setNombre}
-              placeholder="Ej. Producto D"
-              placeholderTextColor="#8a8a8a"
-              style={styles.input}
-            />
-
-            <Text style={styles.label}>Lote</Text>
-            <TextInput
-              value={lote}
-              onChangeText={setLote}
-              placeholder="Opcional"
-              placeholderTextColor="#8a8a8a"
-              style={styles.input}
-            />
-
-            <Text style={styles.label}>Imagen (opcional)</Text>
-            {imageUri ? (
-              <Image
-                source={{ uri: imageUri }}
-                style={{ width: '100%', height: 140, borderRadius: 10 }}
-              />
-            ) : null}
-
-            <Pressable style={styles.secondaryBtn} onPress={pickImage}>
-              <Text style={styles.secondaryText}>
-                {imageUri ? "Cambiar imagen" : "Adjuntar imagen"}
-              </Text>
-            </Pressable>
-
-            <View style={styles.sheetActions}>
-              <Pressable style={[styles.btn, styles.cancel]} onPress={() => setOpen(false)}>
-                <Text style={styles.btnText}>Cancelar</Text>
-              </Pressable>
-
-              <Pressable style={[styles.btn, styles.save]} onPress={guardar}>
-                <Text style={[styles.btnText, { color: 'white' }]}>Guardar</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }
 
+// =============== ESTILOS =================
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  searchBox: { paddingHorizontal: 16, paddingTop: 12 },
-  searchInput: {
-    backgroundColor: '#2b2d31',
-    color: 'white',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  screen: {
+    flex: 1,
+    backgroundColor: "#f3f4f6",
+    justifyContent: "center",
+    paddingHorizontal: 20,
   },
-
-  newBtn: {
-    alignSelf: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: '#4c6ef5',
-  },
-  newBtnText: { color: 'white', fontWeight: '700' },
-
   card: {
-    backgroundColor: '#1f1f23',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 25,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  cardTitle: { fontSize: 18, fontWeight: '800', color: 'white' },
-  cardSub: { color: 'white', opacity: 0.75, marginTop: 4 },
-  cardActions: { flexDirection: 'row', gap: 10, marginLeft: 12 },
-  iconBtn: {
-    width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#2b2d31',
+  logo: {
+    fontSize: 28,
+    fontWeight: "800",
+    alignSelf: "center",
+    marginBottom: 6,
+    color: "#3b82f6",
   },
-  icon: { color: '#7aa2ff', fontSize: 16 },
-
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#0f0f10', padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20, gap: 10 },
-  sheetTitle: { fontSize: 20, fontWeight: '800', color: 'white' },
-  label: { fontWeight: '700', color: 'white' },
+  subtitle: {
+    fontSize: 15,
+    color: "#6b7280",
+    textAlign: "center",
+    marginBottom: 25,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 4,
+    color: "#374151"
+  },
   input: {
-    borderWidth: 1, borderColor: '#3a3a3a', borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 10, color: 'white', backgroundColor: '#141416',
+    backgroundColor: "#f3f4f6",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+    color: "#111827",
   },
-  secondaryBtn: { borderWidth: 1, borderColor: '#3a3a3a', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-  secondaryText: { color: 'white', fontWeight: '600' },
-  sheetActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  btn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
-  cancel: { backgroundColor: '#1f1f23' },
-  save: { backgroundColor: '#4c6ef5' },
-  btnText: { fontWeight: '700', color: 'white' },
+  passWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  eyeBtn: { padding: 10, marginLeft: -10 },
+  error: { color: "red", marginBottom: 10, textAlign: "center" },
+  button: {
+    backgroundColor: "#3b82f6",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 5,
+    marginBottom: 12,
+  },
+  buttonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  registerText: { textAlign: "center", color: "#6b7280" },
+  registerLink: { color: "#3b82f6", fontWeight: "700" }
 });

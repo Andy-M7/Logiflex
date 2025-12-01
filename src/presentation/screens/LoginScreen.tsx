@@ -14,8 +14,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/StackNavigation';
 
 import { signInWithEmailAndPassword } from "firebase/auth";
-import axios from "axios";
 import { auth } from '../../firebase';
+import axios from "axios";
 import { API_URL } from '../../services/api';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
@@ -45,17 +45,12 @@ export default function LoginScreen() {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const firebaseToken = await cred.user.getIdToken();
 
-      // 2️⃣ Llamar al backend para validar token y devolver rol + usuario
-      const res = await axios.post(
-        `${API_URL}/auth/login`,
-        {},
-        { headers: { Authorization: `Bearer ${firebaseToken}` } }
-      );
+      // 2️⃣ Login Backend
+      const res = await axios.post(`${API_URL}/auth/login`, {
+        idToken: firebaseToken,  // 👈 clave correcta
+      });
 
-      // Respuesta del backend:
-      // { ok: true, uid, email, role }
-
-      // 3️⃣ Guardamos datos del backend
+      // 3️⃣ Guardar sesión
       await AsyncStorage.setItem(TOKEN_KEY, firebaseToken);
       await AsyncStorage.setItem(USER_INFO, JSON.stringify(res.data));
 
@@ -128,16 +123,11 @@ export default function LoginScreen() {
           }
         </Pressable>
 
-        <Text style={styles.registerText}>
-          ¿No tienes cuenta? <Text style={styles.registerLink}>Regístrate</Text>
-        </Text>
-
       </View>
     </View>
   );
 }
 
-// ESTILOS
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -195,6 +185,4 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   buttonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  registerText: { textAlign: "center", color: "#6b7280" },
-  registerLink: { color: "#3b82f6", fontWeight: "700" }
 });
