@@ -1,72 +1,120 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TextInput, FlatList, Pressable, Modal,
-  KeyboardAvoidingView, Platform, Image
+  KeyboardAvoidingView, Platform, Image, Alert
 } from 'react-native';
-import { launchImageLibrary, ImageLibraryOptions } from 'react-native-image-picker';
 
-type Product = { id: string; nombre: string; lote?: string; imageUri?: string | null; };
+import { launchImageLibrary } from 'react-native-image-picker';
+import { ProductsApi } from '../../services/productsApi';
+
+type Product = {
+  id: string;
+  nombre: string;
+  lote?: string;
+  imageUrl?: string | null;
+};
 
 export default function ProductosScreen() {
   const [query, setQuery] = useState('');
-  const [data, setData] = useState<Product[]>([
-    { id: 'a', nombre: 'Producto A', lote: '12345' },
-    { id: 'b', nombre: 'Producto B', lote: '67890' },
-    { id: 'c', nombre: 'Producto C' },
-  ]);
+  const [data, setData] = useState<Product[]>([]);
 
   const [open, setOpen] = useState(false);
   const [nombre, setNombre] = useState('');
   const [lote, setLote] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
 
+  // =============================
+  // 🔥 CARGAR PRODUCTOS DEL BACKEND
+  // =============================
+  const cargarProductos = async () => {
+    try {
+      const res = await ProductsApi.getAll();
+      setData(res.data);
+    } catch (err) {
+      Alert.alert("Error", "No se pudieron cargar los productos");
+    }
+  };
+
+  useEffect(() => {
+    cargarProductos();
+  }, []);
+
+  // =============================
+  // FILTRADO
+  // =============================
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return data;
     return data.filter(p =>
-      p.nombre.toLowerCase().includes(q) || (p.lote ?? '').toLowerCase().includes(q)
+      p.nombre.toLowerCase().includes(q) ||
+      (p.lote ?? '').toLowerCase().includes(q)
     );
   }, [query, data]);
 
+  // =============================
+  // IMAGEN
+  // =============================
   const pickImage = async () => {
-    const options: ImageLibraryOptions = { mediaType: 'photo', selectionLimit: 1, quality: 0.7 };
-    const res = await launchImageLibrary(options);
+    const res = await launchImageLibrary({ mediaType: 'photo', quality: 0.7 });
+
     const uri = res.assets?.[0]?.uri;
     if (uri) setImageUri(uri);
   };
 
-  const guardar = () => {
-    if (!nombre.trim()) return;
-    const nuevo: Product = {
-      id: String(Date.now()),
-      nombre: nombre.trim(),
-      lote: lote.trim() || undefined,
-      imageUri,
+  // =============================
+  // GUARDAR PRODUCTO EN BACKEND
+  // =============================
+  const guardar = async () => {
+    if (!nombre.trim()) return Alert.alert("Error", "El nombre es obligatorio");
+
+    const payload = {
+      nombre,
+      lote: lote.trim() || null,
+      imageUrl: imageUri ?? null, // guarda la URL o null
     };
-    setData(arr => [nuevo, ...arr]);
-    setNombre(''); setLote(''); setImageUri(null); setOpen(false);
+
+    try {
+      await ProductsApi.create(payload);
+
+      Alert.alert("Éxito", "Producto registrado correctamente");
+      setNombre('');
+      setLote('');
+      setImageUri(null);
+      setOpen(false);
+      cargarProductos();
+
+    } catch (err: any) {
+      const backendMsg = err.response?.data?.message;
+      Alert.alert("Error", backendMsg || "No se pudo registrar producto");
+    }
   };
 
+  // =============================
+  // RENDER ITEM
+  // =============================
   const renderItem = ({ item }: { item: Product }) => (
     <View style={styles.card}>
       <View style={{ flex: 1 }}>
         <Text style={styles.cardTitle}>{item.nombre}</Text>
         {!!item.lote && <Text style={styles.cardSub}>Lote {item.lote}</Text>}
       </View>
+
       <View style={styles.cardActions}>
-        <Pressable style={styles.iconBtn} onPress={() => { /* TODO: editar */ }}>
+        <Pressable style={styles.iconBtn}>
           <Text style={styles.icon}>✎</Text>
         </Pressable>
-        <Pressable style={styles.iconBtn} onPress={() => { /* TODO: ver imagen */ }}>
-          <Text style={styles.icon}>🖼️</Text>
-        </Pressable>
+
+        {item.imageUrl ? (
+          <Pressable style={styles.iconBtn}>
+            <Text style={styles.icon}>🖼️</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      {/* buscador */}
       <View style={styles.searchBox}>
         <TextInput
           placeholder="Buscar productos"
@@ -77,7 +125,6 @@ export default function ProductosScreen() {
         />
       </View>
 
-      {/* botón nuevo */}
       <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
         <Pressable style={styles.newBtn} onPress={() => setOpen(true)}>
           <Text style={styles.newBtnText}>+ Nuevo</Text>
@@ -91,10 +138,10 @@ export default function ProductosScreen() {
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, gap: 12 }}
       />
 
-      {/* bottom-sheet */}
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetBackdrop}>
+      <Modal visible={open} transparent animationType="slide">
+        <KeyboardAvoidingView style={styles.sheetBackdrop}>
           <Pressable style={{ flex: 1 }} onPress={() => setOpen(false)} />
+
           <View style={styles.sheet}>
             <Text style={styles.sheetTitle}>Nuevo Producto</Text>
 
@@ -118,16 +165,23 @@ export default function ProductosScreen() {
 
             <Text style={styles.label}>Imagen (opcional)</Text>
             {imageUri ? (
-              <Image source={{ uri: imageUri }} style={{ width: '100%', height: 140, borderRadius: 10 }} />
+              <Image
+                source={{ uri: imageUri }}
+                style={{ width: '100%', height: 140, borderRadius: 10 }}
+              />
             ) : null}
+
             <Pressable style={styles.secondaryBtn} onPress={pickImage}>
-              <Text style={styles.secondaryText}>{imageUri ? 'Cambiar imagen' : 'Adjuntar imagen'}</Text>
+              <Text style={styles.secondaryText}>
+                {imageUri ? "Cambiar imagen" : "Adjuntar imagen"}
+              </Text>
             </Pressable>
 
             <View style={styles.sheetActions}>
               <Pressable style={[styles.btn, styles.cancel]} onPress={() => setOpen(false)}>
                 <Text style={styles.btnText}>Cancelar</Text>
               </Pressable>
+
               <Pressable style={[styles.btn, styles.save]} onPress={guardar}>
                 <Text style={[styles.btnText, { color: 'white' }]}>Guardar</Text>
               </Pressable>
@@ -138,6 +192,7 @@ export default function ProductosScreen() {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
