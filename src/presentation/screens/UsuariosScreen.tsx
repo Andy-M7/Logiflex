@@ -1,125 +1,263 @@
-import React, { useLayoutEffect, useState } from 'react';
+// src/presentation/screens/UsuariosScreen.tsx
+import React, { useLayoutEffect, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, Pressable,
   Modal, KeyboardAvoidingView, Platform, TextInput, Alert
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/StackNavigation';
 
+import { UsersApi } from "../../services/usersApi";
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Usuarios'>;
 
-type Usuario = { id: string; correo: string; rol: string };
+type Usuario = { 
+  id: string; 
+  email: string; 
+  role: string; 
+  isActive: boolean;
+  name?: string;
+};
 
-const ROLES_BASE = ['Administrador', 'Supervisor', 'Logística', 'Operaciones'];
+const ROLES = ["Administrador", "Supervisor", "Logística", "Operaciones"];
 
 export default function UsuariosScreen({ navigation }: Props) {
-  const [usuarios, setUsuarios] = useState<Usuario[]>([
-    { id: '1', correo: 'admin@demo.com', rol: 'Administrador' },
-    { id: '2', correo: 'jlopez@demo.com', rol: 'Supervisor' },
-  ]);
 
-  // bottom-sheet crear
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [open, setOpen] = useState(false);
-  const [correo, setCorreo] = useState('');
-  const [rol, setRol] = useState<string>(ROLES_BASE[0]);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
+  const [email, setEmail] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [password, setPassword] = useState("");
+  const [rol, setRol] = useState(ROLES[0]);
+
+  // ================================
+  // HEADER
+  // ================================
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <Pressable style={styles.addBtn} onPress={() => setOpen(true)}>
+        <Pressable style={styles.addBtn} onPress={handleOpenCreate}>
           <Text style={styles.addBtnText}>+ Añadir</Text>
         </Pressable>
       ),
     });
-  }, [navigation]);
+  }, []);
 
-  const isEmail = (v: string) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+  // ================================
+  // CARGA USUARIOS
+  // ================================
+  useEffect(() => {
+    load();
+  }, []);
 
-  const guardar = () => {
-    const mail = correo.trim();
-    if (!isEmail(mail)) {
-      Alert.alert('Correo inválido', 'Ingresa un correo electrónico válido.');
-      return;
+  const load = async () => {
+    try {
+      const res = await UsersApi.getAll(); // Puede venir undefined
+
+      if (!res) {
+        console.log("⚠ No hubo respuesta del servidor");
+        return;
+      }
+
+      setUsuarios(res.data);
+
+    } catch (e: any) {
+      console.log("Error cargando usuarios:", e.message);
+    } finally {
+      setLoading(false);
     }
-    if (usuarios.some(u => u.correo.toLowerCase() === mail.toLowerCase())) {
-      Alert.alert('Duplicado', 'Ya existe un usuario con ese correo.');
-      return;
-    }
-    const nuevo: Usuario = { id: String(Date.now()), correo: mail, rol };
-    setUsuarios(prev => [nuevo, ...prev]);
-    // reset
-    setCorreo('');
-    setRol(ROLES_BASE[0]);
-    setOpen(false);
   };
 
+  // ======================================
+  // ABRIR CREAR
+  // ======================================
+  const handleOpenCreate = () => {
+    setEditingId(null);
+    setEmail("");
+    setNombre("");
+    setPassword("");
+    setRol(ROLES[0]);
+    setOpen(true);
+  };
+
+  // ======================================
+  // ABRIR EDITAR
+  // ======================================
+  const handleOpenEdit = (user: Usuario) => {
+    setEditingId(user.id);
+    setEmail(user.email);
+    setNombre(user.name ?? "");
+    setPassword("");
+    setRol(user.role);
+    setOpen(true);
+  };
+
+  // ======================================
+  // GUARDAR / EDITAR
+  // ======================================
+  const guardar = async () => {
+    if (!email.trim()) return Alert.alert("Correo requerido");
+    if (!nombre.trim()) return Alert.alert("Nombre requerido");
+
+    if (!editingId && password.length < 6) {
+      return Alert.alert("Contraseña mínima 6 caracteres");
+    }
+
+    try {
+      if (editingId) {
+        await UsersApi.update(editingId, {
+          email,
+          name: nombre,
+          role: rol,
+          ...(password ? { password } : {})
+        });
+
+        Alert.alert("Éxito", "Usuario actualizado correctamente");
+
+      } else {
+        await UsersApi.create({
+          email,
+          password,
+          name: nombre,
+          role: rol,
+        });
+
+        Alert.alert("Éxito", "Usuario creado correctamente");
+      }
+
+      setOpen(false);
+      load();
+
+    } catch (err: any) {
+      Alert.alert("Error", err.message);
+    }
+  };
+
+  // ======================================
+  // ELIMINAR
+  // ======================================
+  const eliminar = (id: string) => {
+    Alert.alert(
+      "Confirmar",
+      "¿Deseas eliminar este usuario?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { 
+          text: "Eliminar", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await UsersApi.delete(id);
+              load();
+            } catch {
+              Alert.alert("Error", "No se pudo eliminar");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // ======================================
+  // RENDER ITEM
+  // ======================================
   const renderItem = ({ item }: { item: Usuario }) => (
     <View style={styles.row}>
       <View>
-        <Text style={styles.title}>{item.correo}</Text>
-        <Text style={styles.sub}>Rol: {item.rol}</Text>
+        <Text style={styles.title}>{item.email}</Text>
+        <Text style={styles.sub}>Nombre: {item.name ?? "—"}</Text>
+        <Text style={styles.sub}>Rol: {item.role}</Text>
       </View>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Pressable style={[styles.btn, styles.ghost]} onPress={() => navigation.navigate('Roles')}>
-          <Text style={styles.btnText}>Cambiar rol</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.btn, styles.danger]}
-          onPress={() => setUsuarios(list => list.filter(u => u.id !== item.id))}
+
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <Pressable 
+          style={[styles.btn, styles.ghost]} 
+          onPress={() => handleOpenEdit(item)}
         >
-          <Text style={[styles.btnText, { color: 'white' }]}>Eliminar</Text>
+          <Text style={styles.btnText}>Editar</Text>
+        </Pressable>
+
+        <Pressable 
+          style={[styles.btn, styles.danger]} 
+          onPress={() => eliminar(item.id)}
+        >
+          <Text style={[styles.btnText, { color: "white" }]}>Eliminar</Text>
         </Pressable>
       </View>
     </View>
   );
 
+  // ======================================
+  // UI
+  // ======================================
   return (
     <View style={styles.container}>
-      <FlatList
-        data={usuarios}
-        keyExtractor={(i) => i.id}
-        contentContainerStyle={{ padding: 16, gap: 12 }}
-        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-        renderItem={renderItem}
-      />
 
-      {/* Acciones rápidas con Roles */}
-      <View style={styles.footer}>
-        <Pressable style={[styles.btn, styles.primary]} onPress={() => navigation.navigate('Roles')}>
-          <Text style={[styles.btnText, { color: 'white' }]}>Gestionar Roles</Text>
-        </Pressable>
-        <Pressable style={[styles.btn, styles.outline]} onPress={() => navigation.navigate('Roles')}>
-          <Text style={styles.btnText}>Agregar Rol</Text>
-        </Pressable>
-      </View>
+      {loading ? (
+        <Text style={{ textAlign: "center", marginTop: 30, color: "#888" }}>
+          Cargando...
+        </Text>
+      ) : (
+        <FlatList
+          data={usuarios}
+          keyExtractor={(i) => i.id}
+          contentContainerStyle={{ padding: 16, gap: 12 }}
+          renderItem={renderItem}
+        />
+      )}
 
-      {/* Bottom-sheet crear usuario */}
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+      {/* ============================
+          BOTTOM SHEET
+      =============================== */}
+      <Modal visible={open} transparent animationType="slide">
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.sheetBackdrop}
         >
           <Pressable style={{ flex: 1 }} onPress={() => setOpen(false)} />
+
           <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Añadir Usuario</Text>
+            <Text style={styles.sheetTitle}>
+              {editingId ? "Editar Usuario" : "Añadir Usuario"}
+            </Text>
 
             <Text style={styles.label}>Correo</Text>
             <TextInput
-              value={correo}
-              onChangeText={setCorreo}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              placeholder="usuario@empresa.com"
-              placeholderTextColor="#8a8a8a"
+              value={email}
+              onChangeText={setEmail}
               style={styles.input}
+              autoCapitalize="none"
+            />
+
+            <Text style={styles.label}>Nombre</Text>
+            <TextInput
+              value={nombre}
+              onChangeText={setNombre}
+              style={styles.input}
+            />
+
+            <Text style={styles.label}>
+              {editingId ? "Contraseña (opcional)" : "Contraseña"}
+            </Text>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              style={styles.input}
+              secureTextEntry
             />
 
             <Text style={styles.label}>Rol</Text>
             <View style={styles.pickerWrap}>
-              <Picker selectedValue={rol} onValueChange={(v) => setRol(v)}>
-                {ROLES_BASE.map(r => <Picker.Item key={r} label={r} value={r} />)}
+              <Picker selectedValue={rol} onValueChange={setRol}>
+                {ROLES.map(r => (
+                  <Picker.Item key={r} label={r} value={r} />
+                ))}
               </Picker>
             </View>
 
@@ -127,52 +265,97 @@ export default function UsuariosScreen({ navigation }: Props) {
               <Pressable style={[styles.btn, styles.cancel]} onPress={() => setOpen(false)}>
                 <Text style={styles.btnText}>Cancelar</Text>
               </Pressable>
+
               <Pressable style={[styles.btn, styles.save]} onPress={guardar}>
-                <Text style={[styles.btnText, { color: 'white' }]}>Guardar</Text>
+                <Text style={[styles.btnText, { color: "white" }]}>
+                  {editingId ? "Actualizar" : "Guardar"}
+                </Text>
               </Pressable>
             </View>
+
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
     </View>
   );
 }
 
+
+// ===========================
+// ESTILOS
+// ===========================
 const styles = StyleSheet.create({
   container: { flex: 1 },
+
   row: {
     padding: 14,
     borderRadius: 12,
-    backgroundColor: '#2b2d31',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    backgroundColor: "#2b2d31",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  title: { fontSize: 16, fontWeight: '700', color: 'white' },
-  sub: { color: 'white', opacity: 0.85 },
 
-  // botones de fila / footer
-  btn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, alignItems: 'center' },
-  btnText: { fontWeight: '600', color: 'white' },
-  primary: { backgroundColor: '#4c6ef5' },
-  outline: { backgroundColor: '#1f1f23', borderWidth: 1, borderColor: '#3a3a3a' },
-  ghost: { backgroundColor: '#1f1f23' },
-  danger: { backgroundColor: '#c92a2a' },
-  footer: { padding: 16, gap: 10 },
+  title: { fontSize: 16, fontWeight: "700", color: "white" },
+  sub: { color: "white", opacity: 0.85 },
 
-  // headerRight
-  addBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: '#e9ecef' },
-  addBtnText: { fontWeight: '700' },
+  addBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: "#e9ecef",
+  },
+  addBtnText: { fontWeight: "700" },
 
-  // bottom-sheet
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: 'white', padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20, gap: 10 },
-  sheetTitle: { fontSize: 18, fontWeight: '800', marginBottom: 6 },
-  label: { fontWeight: '700' },
-  input: { borderWidth: 1, borderColor: '#d1d1d1', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  pickerWrap: { borderWidth: 1, borderColor: '#d1d1d1', borderRadius: 10, overflow: 'hidden' },
+  btn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  ghost: { backgroundColor: "#1f1f23" },
+  danger: { backgroundColor: "#c92a2a" },
+  btnText: { fontWeight: "600", color: "white" },
 
-  sheetActions: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  cancel: { backgroundColor: '#f1f3f5' },
-  save: { backgroundColor: '#4c6ef5' },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "flex-end",
+  },
+
+  sheet: {
+    backgroundColor: "white",
+    padding: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    gap: 10,
+  },
+
+  sheetTitle: { fontSize: 18, fontWeight: "800" },
+
+  label: { fontWeight: "700" },
+
+  input: {
+    borderWidth: 1,
+    borderColor: "#d1d1d1",
+    borderRadius: 10,
+    padding: 10,
+  },
+
+  pickerWrap: {
+    borderWidth: 1,
+    borderColor: "#d1d1d1",
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+
+  sheetActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 12,
+  },
+
+  cancel: { backgroundColor: "#f1f3f5" },
+  save: { backgroundColor: "#4c6ef5" },
 });
